@@ -15,5 +15,5 @@ class LM75AComponent : public sensor::Sensor, public PollingComponent, public i2
   void update() override;
 };
 
-}}  // namespace lm75a
+}  // namespace lm75a
 }  // namespace esphome
