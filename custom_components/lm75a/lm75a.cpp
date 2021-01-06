@@ -68,7 +68,7 @@ void LM75AComponent::update() {
   uint16_t i2c_received = 0;
 
     if(!this->read_byte_16(LM75A_REGISTER_TEMP, &i2c_received)){
-        this->mark_failed();
+        this->status_set_warning();
         return;
   }
   ESP_LOGD(TAG, "READ=%x", i2c_received);
@@ -76,6 +76,7 @@ void LM75AComponent::update() {
 
   ESP_LOGD(TAG, "Got Temperature=%.1f°C", real_value);
   publish_state(real_value);
+  this->status_clear_warning();
 }
 }
 }
