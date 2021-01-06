@@ -4,26 +4,33 @@
 namespace esphome {
 namespace otio {
 
-static const char *TAG = "otio";
+static const char *TAG = "otio.sensor";
 
-// OTIO::OTIO(){
-// protocol_ = RCSwitchBase(480, 4000, 480, 1000, 480, 2000, false);
-// }
-
-void OTIO::setup() {
-    ESP_LOGD(TAG, "Setting up OTIO sensor !!!" );
+void OtioComponent::setup() {
+    ESP_LOGD(TAG, "Setting up OtioComponent" );
     // sensor->add_filters({
     //     ThrottleFilter()
     //     LambdaFilter([&](float value) -> optional<float> { return 42/value; }),
     //     OffsetFilter(1),
     //     SlidingWindowMovingAverageFilter(15, 15), // average over last 15 values
     // });
-    this->publish_state(NAN);
+    for (auto sensor : this->sensors_) {
+        sensor->publish_state(NAN);
+    }
 }
-void OTIO::dump_config() { LOG_SENSOR("", "OTIO Sensor", this) }
-float OTIO::get_setup_priority() const { return setup_priority::DATA; }
+void OtioComponent::dump_config() {
+    ESP_LOGCONFIG(TAG, "OtioComponent:");
+    for (auto *sensor : this->sensors_) {
+        LOG_SENSOR("  ", "Sensor", sensor);
+        ESP_LOGCONFIG(TAG, "    Channel %i", sensor->get_channel());
+    }
+    for (auto *sensor : this->binary_sensors_) {
+        LOG_BINARY_SENSOR("  ", "Binary Sensor", sensor);
+        ESP_LOGCONFIG(TAG, "    Channel %i", sensor->get_channel());
+    }
+}
 
-bool OTIO::on_receive(remote_base::RemoteReceiveData data) {
+bool OtioComponent::on_receive(remote_base::RemoteReceiveData data) {
     
     /*
     Data received through PPM
@@ -37,54 +44,77 @@ bool OTIO::on_receive(remote_base::RemoteReceiveData data) {
     - temp is 12 bit signed scaled by 10
     - const is always 1111 (0x0F)
     - Last 8 bits is 0 on the otio (some sensors expose humidity here)
-    
     */
     
     uint64_t decoded_code;
-  uint8_t decoded_nbits;
-  if (!this->protocol_.decode(data, &decoded_code, &decoded_nbits))
-    return false;
-  if (decoded_nbits!=36)
-    return false;
+    uint8_t decoded_nbits;
+    if (!this->protocol_.decode(data, &decoded_code, &decoded_nbits))
+        return false;
+    if (decoded_nbits!=36)
+        return false;
   
     char buffer[65];
-      for (uint8_t j = 0; j < decoded_nbits; j++)
+    for (uint8_t j = 0; j < decoded_nbits; j++)
         buffer[j] = (decoded_code & ((uint64_t) 1 << (decoded_nbits - j - 1))) ? '1' : '0';
-
-      buffer[decoded_nbits] = '\0';
-      ESP_LOGD(TAG, "Received OTIO %u bits data='%s'", decoded_nbits, buffer);
-      
+    buffer[decoded_nbits] = '\0';
+    ESP_LOGD(TAG, "Received OTIO %u bits data='%s'", decoded_nbits, buffer);
       
     //   uint8_t *b = (uint8_t *)&decoded_code;
     //   ESP_LOGD(TAG, "OTIO b array %x, %x, %x, %x, %x, %x, %x, %x", b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]);
       
-      decoded_code >>= 12;
-      uint64_t mask = 0b111111111111;
-      auto temp = float((float)(decoded_code & 0x0FFF) / 10.0);
-      ESP_LOGD(TAG, "OTIO Temp %f", temp);
-      decoded_code >>= 12;
-      uint8_t channel = (decoded_code & 0x03)+1;
-      bool battery_low = (decoded_code & 0x08) == 0;
-      uint8_t id = decoded_code >>= 4;
-      ESP_LOGD(TAG, "Received OTIO battery low: %d, channel %d, ID %d", battery_low, channel, id);
+    decoded_code >>= 12;
+    int temp_raw = (int16_t)((decoded_code & 0x0FFF) << 4); // sign-extend
+    float temp =(temp_raw >> 4) * 0.1f;
+    // auto temp = float((float)(decoded_code & 0x0FFF) / 10.0);
+    decoded_code >>= 12;
+    uint8_t channel = (decoded_code & 0x03)+1;
+    bool battery_low = (decoded_code & 0x08) == 0;
+    uint8_t id = decoded_code >>= 4;
+    ESP_LOGD(TAG, "Received OTIO temp %fC, battery low: %d, channel %d, ID %d", temp, battery_low, channel, id);
       
-    // ESP_LOGD(TAG, "Got data %s",data.get_raw_data());
-    
-
-// void NTC::process_(float value) {
-//   if (isnan(value)) {
-//     this->publish_state(NAN);
-//     return;
-//   }
-
-//   double lr = log(double(value));
-//   double v = this->a_ + this->b_ * lr + this->c_ * lr * lr * lr;
-//   auto temp = float(1.0 / v - 273.15);
-
-//   ESP_LOGD(TAG, "'%s' - Temperature: %.1f°C", this->name_.c_str(), temp);
-  this->publish_state(temp);
-  return true;
+    for (auto *sensor : this->sensors_) {
+      if(sensor->get_channel() == channel){
+          sensor->publish_state(temp);
+      }
+    }  
+    for (auto *sensor : this->binary_sensors_) {
+      if(sensor->get_channel() == channel){
+          sensor->publish_state(battery_low);
+      }
+    }
+    return true;
 }
+
+OtioTemperatureSensor *OtioComponent::get_sensor_by_channel(uint8_t channel) {
+    auto s = new OtioTemperatureSensor(channel, this);
+    this->sensors_.push_back(s);
+    return s;
+}
+OtioLowBatteryBinarySensor *OtioComponent::get_binary_sensor_by_channel(uint8_t channel) {
+    auto s = new OtioLowBatteryBinarySensor(channel, this);
+    this->binary_sensors_.push_back(s);
+    return s;
+}
+
+
+OtioTemperatureSensor::OtioTemperatureSensor(uint8_t channel, OtioComponent *parent)
+    : parent_(parent){
+    this->channel_ = channel;
+    this->set_filters({});
+}
+void OtioTemperatureSensor::set_filters(const std::vector<sensor::Filter *> &filters) {
+    this->clear_filters();
+    this->add_filter(new sensor::ThrottleFilter(2000)); //Add extra filter to only publish once per packet
+    this->add_filters(filters);
+}
+uint8_t OtioTemperatureSensor::get_channel() const { return this->channel_; }
+
+
+OtioLowBatteryBinarySensor::OtioLowBatteryBinarySensor(uint8_t channel, OtioComponent *parent)
+    : parent_(parent){
+    this->channel_ = channel;
+}
+uint8_t OtioLowBatteryBinarySensor::get_channel() const { return this->channel_; }
 
 }  // namespace otio
 }  // namespace esphome
