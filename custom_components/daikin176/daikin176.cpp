@@ -34,34 +34,37 @@ void Daikin176Climate::transmit_state() {
   auto data = transmit.get_data();
   data->set_carrier_frequency(DAIKIN_IR_FREQUENCY);
 
-  //transmit first part of message (7bytes)
-  data->mark(DAIKIN_HEADER_MARK);
-  data->space(DAIKIN_HEADER_SPACE);
-  for (int i = 0; i < 7; i++) {
-//     ESP_LOGD(TAG, "transmit byte%d is %x", i, remote_state[i]);
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DAIKIN_BIT_MARK);
-      bool bit = remote_state[i] & mask;
-      data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
-    }
-  }
-  data->mark(DAIKIN_BIT_MARK);
-  data->space(DAIKIN_MESSAGE_SPACE);
+  for (uint16_t repeat = 0; repeat <= 2; repeat++) {  // repeat whole message
 
-  // transmit second part of message
-  data->mark(DAIKIN_HEADER_MARK);
-  data->space(DAIKIN_HEADER_SPACE);
-
-  for (int i = 7; i < 22; i++) {
-//     ESP_LOGD(TAG, "transmit byte%d is %x", i, remote_state[i]);
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DAIKIN_BIT_MARK);
-      bool bit = remote_state[i] & mask;
-      data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
+    //transmit first part of message (7bytes)
+    data->mark(DAIKIN_HEADER_MARK);
+    data->space(DAIKIN_HEADER_SPACE);
+    for (int i = 0; i < 7; i++) {
+      // ESP_LOGD(TAG, "transmit byte%d is %x", i, remote_state[i]);
+      for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
+        data->mark(DAIKIN_BIT_MARK);
+        bool bit = remote_state[i] & mask;
+        data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
+      }
     }
+    data->mark(DAIKIN_BIT_MARK);
+    data->space(DAIKIN_MESSAGE_SPACE);
+
+    // transmit second part of message
+    data->mark(DAIKIN_HEADER_MARK);
+    data->space(DAIKIN_HEADER_SPACE);
+
+    for (int i = 7; i < 22; i++) {
+      // ESP_LOGD(TAG, "transmit byte%d is %x", i, remote_state[i]);
+      for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
+        data->mark(DAIKIN_BIT_MARK);
+        bool bit = remote_state[i] & mask;
+        data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
+      }
+    }
+    data->mark(DAIKIN_BIT_MARK);
+    data->space(DAIKIN_MESSAGE_SPACE);
   }
-  data->mark(DAIKIN_BIT_MARK);
-  data->space(DAIKIN_MESSAGE_SPACE);
 
   transmit.perform();
 }
