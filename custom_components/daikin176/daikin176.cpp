@@ -34,6 +34,7 @@ void Daikin176Climate::transmit_state() {
   auto data = transmit.get_data();
   data->set_carrier_frequency(DAIKIN_IR_FREQUENCY);
 
+  //transmit first part of message (7bytes)
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
   for (int i = 0; i < 7; i++) {
@@ -46,6 +47,8 @@ void Daikin176Climate::transmit_state() {
   }
   data->mark(DAIKIN_BIT_MARK);
   data->space(DAIKIN_MESSAGE_SPACE);
+
+  // transmit second part of message
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
@@ -58,7 +61,7 @@ void Daikin176Climate::transmit_state() {
     }
   }
   data->mark(DAIKIN_BIT_MARK);
-  data->space(0);
+  data->space(DAIKIN_MESSAGE_SPACE);
 
   transmit.perform();
 }
