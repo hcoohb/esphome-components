@@ -1,17 +1,25 @@
-// https://github.com/ayufan/esphome-components
+// original code inspired from https://github.com/ayufan/esphome-components
 
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
-namespace debug {
+namespace memory {
 
-class MemoryComponent : public PollingComponent {
+class MemorySensor : public sensor::Sensor, public PollingComponent {
  public:
   void update() override;
+  void dump_config() override;
+
   float get_setup_priority() const override;
+
+  std::string unique_id() override;
+
+ protected:
+  uint64_t memory_{0};
 };
 
-}  // namespace debug
+}  // namespace memory
 }  // namespace esphome
