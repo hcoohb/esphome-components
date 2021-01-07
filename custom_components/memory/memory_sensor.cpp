@@ -1,6 +1,6 @@
 // original code inspired from https://github.com/ayufan/esphome-components
 
-#include "memory_component.h"
+#include "memory_sensor.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
