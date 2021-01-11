@@ -1,6 +1,6 @@
 #include "daikin176.h"
 #include "esphome/components/remote_base/remote_base.h"
-// #include "esphome/core/log.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace daikin176 {
@@ -34,7 +34,7 @@ void Daikin176Climate::transmit_state() {
   auto data = transmit.get_data();
   data->set_carrier_frequency(DAIKIN_IR_FREQUENCY);
 
-  for (uint16_t repeat = 0; repeat <= 2; repeat++) {  // repeat whole message
+  for (uint16_t repeat = 0; repeat <= 0; repeat++) {  // repeat whole message
 
     //transmit first part of message (7bytes)
     data->mark(DAIKIN_HEADER_MARK);
@@ -199,10 +199,24 @@ bool Daikin176Climate::parse_state_frame_(const uint8_t frame[]) {
 }
 
 bool Daikin176Climate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t state_frame[DAIKIN_STATE_FRAME_SIZE] = {};
-  if (!data.expect_item(DAIKIN_HEADER_MARK, DAIKIN_HEADER_SPACE)) {
-    return false;
+  /* Validate header */
+  /* because of protocol, if remote_receiver.idle >35ms in config,
+  we will be also capturing the first frame, so we move to find the second
+  frame where the data is */
+  if (data.size()>= 300) {
+    data.advance(6*8*2); //we move at least 6bytes (minus headers)
   }
+  // we search for the headers in the next 24  bits
+  uint8_t i = 0;
+  while (i<24 && !data.expect_item(DAIKIN_HEADER_MARK, DAIKIN_HEADER_SPACE)){
+    data.advance(2);
+    i++;
+  }
+  if (i==24) return false;
+  ESP_LOGD(TAG, "Found headers at i=%d", i);
+
+  /* we read all bits of 2nd frame to bytes LSB first */
+  uint8_t state_frame[DAIKIN_STATE_FRAME_SIZE] = {};
   for (uint8_t pos = 0; pos < DAIKIN_STATE_FRAME_SIZE; pos++) {
     uint8_t byte = 0;
     for (int8_t bit = 0; bit < 8; bit++) {
@@ -212,31 +226,23 @@ bool Daikin176Climate::on_receive(remote_base::RemoteReceiveData data) {
         return false;
       }
     }
-    
-//     ESP_LOGD(TAG, "byte%d is %x", pos, byte);
     state_frame[pos] = byte;
-    if (pos == 0) {
-      // frame header
-      if (byte != 0x11)
-        return false;
-    } else if (pos == 1) {
-      // frame header
-      if (byte != 0xDA)
-        return false;
-    } else if (pos == 2) {
-      // frame header
-      if (byte != 0x17)
-        return false;
-    } else if (pos == 3) {
-      // frame header
-      if (byte != 0x18)
-        return false;
-    } else if (pos == 4) {
-      // frame type
-      if (byte != 0x00)
-        return false;
-    }
   }
+    
+  /* check protocol frame constants */
+  if (state_frame[0] != 0x11 || 
+      state_frame[1] != 0xDA || 
+      state_frame[2] != 0x17 || 
+      state_frame[3] != 0x18 || 
+      state_frame[4] != 0x00)
+      return false;  
+  ESP_LOGD(
+      TAG,
+      "Received: %02X %02X %02X %02X %02X   %02X %02X %02X %02X %02X   %02X %02X %02X %02X %02X",
+      state_frame[0], state_frame[1], state_frame[2], state_frame[3], state_frame[4], state_frame[5],
+      state_frame[6], state_frame[7], state_frame[8], state_frame[9], state_frame[10], state_frame[11],
+      state_frame[12], state_frame[13], state_frame[14]);
+  
   return this->parse_state_frame_(state_frame);
 }
 
