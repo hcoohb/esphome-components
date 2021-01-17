@@ -8,13 +8,10 @@
 #define BASE_STATION_ADDR	0x33339CC3 //0x63336669 //0x633396c9
 
 #define PAYLOAD_TX_SIZE		20
-#define PAYLOAD_SIZE		22
-//20 with CRC //NRF905_MAX_PAYLOAD
+#define PAYLOAD_SIZE		22 // NRF905_MAX_PAYLOAD
 #define LED					A5
-#define AM NRF905_PIN_UNUSED //34
-//, //27, //NRF905_PIN_UNUSED
-#define DR 27
- //34,//26, //
+#define AM NRF905_PIN_UNUSED //34 //, //27, //NRF905_PIN_UNUSED
+#define DR 27 //34,//26, //
 
 #define PACKET_NONE		0
 #define PACKET_OK		1
@@ -36,21 +33,22 @@ void nRF905_onRxComplete(nRF905* device)
 void nRF905_onRxInvalid(nRF905* device)
 {
 	packetStatus = PACKET_INVALID;
-	// transceiver.standby();
 }
 void nRF905_onTxComplete(nRF905* device)
 {
   txDone=1;
-  //ESP_LOGD(TAG, "Transmission complete confirmed from nrf" );
-  // drUP = 1;
 }
 
 class AquaMonitorSensor : public PollingComponent, public Sensor {
  public:
 
     // constructor
-    AquaMonitorSensor() : PollingComponent(1000) {}
+    AquaMonitorSensor() : PollingComponent(500) {}
     uint32_t txidx=0;
+
+  // void loop() override {
+  //   transceiver.poll();
+  // }
 
   void setup() override {
   drUP=0;
@@ -235,10 +233,6 @@ class AquaMonitorSensor : public PollingComponent, public Sensor {
   LOG_SENSOR("  ", TAG, this);
 }
 
-// void loop() override {
-//   transceiver.poll();
-// }
-
   void update() override {
     // This will be called by App.loop()
     uint8_t success;
@@ -295,8 +289,8 @@ class AquaMonitorSensor : public PollingComponent, public Sensor {
 	    // memset(buffer, 6, PAYLOAD_TX_SIZE); //repeat numbr 6, xxx times
       transceiver.standby();
       transceiver.write(0x33339cc3, buffer, sizeof(buffer));
-      // while(!transceiver.TX(NRF905_NEXTMODE_TX, true));
-      // delay(1000);
+      while(!transceiver.TX(NRF905_NEXTMODE_TX, true));
+      delay(1000);
       while(!transceiver.TX(NRF905_NEXTMODE_STANDBY , true));  // NRF905_NEXTMODE_RX
       ESP_LOGD(TAG, "Published good");
       // Get the reply data
@@ -306,7 +300,6 @@ class AquaMonitorSensor : public PollingComponent, public Sensor {
     }
     txidx+=1;
     
-    // transceiver.poll();
     
     if(success == PACKET_INVALID){
         ESP_LOGD("nRF905", "Invalid package received");
