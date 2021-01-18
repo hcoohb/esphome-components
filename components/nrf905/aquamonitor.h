@@ -4,6 +4,7 @@
 #include <nRF905_defs.h>
 #include <FastCRC.h>
 
+// https://github.com/glmnet/esphome_devices/blob/master/my_home/arduino_port_expander.h
 
 #define BASE_STATION_ADDR	0x33339CC3 //0x63336669 //0x633396c9
 
@@ -17,6 +18,14 @@
 #define PACKET_OK		1
 #define PACKET_INVALID	2
 
+
+#define get_aquamonitor(constructor) static_cast<AquaMonitor *> \
+  (const_cast<custom_component::CustomComponentConstructor *>(&constructor)->get_component(0))
+
+#define aquaMonitor_sensor1(am) get_aquamonitor(am)->get_sensor1()
+// #define aquaMonitor_switch_power(am) get_aquamonitor(am)->get_switch_power()
+
+
 FastCRC16 CRC16;
 static const char *TAG = "AquaMonitor";
 static volatile uint8_t packetStatus; // NOTE: In interrupt mode this must be volatile
@@ -26,6 +35,10 @@ static volatile uint8_t txDone;
 nRF905 transceiver = nRF905();
 static void ICACHE_RAM_ATTR HOT nRF905_int_am(){amUP = 1;transceiver.interrupt_am();} //ESP_LOGD(TAG, "AM" );
 static void ICACHE_RAM_ATTR HOT nRF905_int_dr(){drUP = 1;transceiver.interrupt_dr();} //void ICACHE_RAM_ATTR HOT ????
+
+
+using namespace esphome;
+
 void nRF905_onRxComplete(nRF905* device)
     {
         packetStatus = PACKET_OK;
@@ -39,12 +52,58 @@ void nRF905_onTxComplete(nRF905* device)
   txDone=1;
 }
 
-class AquaMonitorSensor : public PollingComponent, public Sensor {
+class nrf905SwitchPower : public Component, public Switch {
+  public:
+    void setup() override {}
+    void write_state(bool state) override {
+      // This will be called every time the user requests a state change.
+      if (state)
+        transceiver.powerDown();
+      else 
+        transceiver.standby();
+      publish_state(state); // Acknowledge new state by publishing it
+    }
+};
+
+class AquaMonitor : public PollingComponent {
  public:
 
+    nrf905SwitchPower *switchPower {nullptr};
+    Sensor *sensor1;
+    Sensor *sensor2;
     // constructor
-    AquaMonitorSensor() : PollingComponent(500) {}
+    AquaMonitor() : PollingComponent(500) {
+      // this->powerSwitch = new nrf905PowerSwitch();
+    }
     uint32_t txidx=0;
+  
+  sensor::Sensor *get_sensor1(){
+    sensor1 = new Sensor();
+    return sensor1;
+  }
+
+  switch_::Switch *get_switch_power(){
+    switchPower = new nrf905SwitchPower();
+    return switchPower;
+  }
+  
+  // void setPowerSwitch(nrf905PowerSwitch *theSwitch) {
+  //   this->powerSwitch = theSwitch;
+  //   // this->powerSwitch->add_on_state_callback(powerStitchCB);
+  //   // this->powerSwitch->add_on_state_callback([this](bool state) {
+  //   //   if (state) {
+  //   //     transceiver.powerDown();
+  //   //   }
+  //   // });
+  // }
+
+  // void powerStitchCB (bool state){
+  //   if (state)
+  //       transceiver.powerDown();
+  //     else 
+  //       transceiver.standby();
+  //     publish_state(state); // Acknowledge new state by publishing it
+  // }
 
   // void loop() override {
   //   transceiver.poll();
@@ -95,6 +154,7 @@ class AquaMonitorSensor : public PollingComponent, public Sensor {
     transceiver.getConfigRegisters(regs);
     
     transceiver.RX();
+    this->switchPower->publish_state(true);
   
   ESP_LOGCONFIG(TAG, "Registers: %02X %02x %02X %02x %02X %02x %02X %02x %02X %02x ", 
   regs[0], regs[1], regs[2], regs[3], regs[4], regs[5], regs[6], regs[7], regs[8], regs[9]);
@@ -230,7 +290,7 @@ class AquaMonitorSensor : public PollingComponent, public Sensor {
   }
   LOG_UPDATE_INTERVAL(this);
 
-  LOG_SENSOR("  ", TAG, this);
+  LOG_SENSOR("  ", TAG, sensor1);
 }
 
   void update() override {
@@ -281,6 +341,7 @@ class AquaMonitorSensor : public PollingComponent, public Sensor {
     if (transceiver.mode()!=NRF905_MODE_RX){
       ESP_LOGD(TAG, "Not in Mode RX" );
       transceiver.RX();
+      this->switchPower->publish_state(true);
     }
 
     if (txidx % 80000 == 0){
@@ -316,6 +377,7 @@ class AquaMonitorSensor : public PollingComponent, public Sensor {
           ESP_LOGD("nRF905", "B[%i] %02x", i, replyBuffer[i]);
         }
         transceiver.RX();
+        this->switchPower->publish_state(true);
     }
 
     if(success == PACKET_OK){
@@ -337,7 +399,7 @@ class AquaMonitorSensor : public PollingComponent, public Sensor {
             float val = ( (uint16_t)replyBuffer[2] | (uint16_t)replyBuffer[3]<<8) / 4.76f;
             ESP_LOGD("nRF905", "W: dec=%d val=%f", (uint16_t)replyBuffer[2] | (uint16_t)replyBuffer[3]<<8, val);
             ESP_LOGD("nRF905", "CRC: %04x", CRC16.kermit(replyBuffer, 20));
-            publish_state(val);
+            sensor1->publish_state(val);
             // ESP_LOGD("nRF905", "kW: %f", ( );
           }
           // for (uint8_t i=0;i<PAYLOAD_SIZE;i++){
