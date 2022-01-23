@@ -9,23 +9,25 @@ static const char *const TAG = "daikin176.climate";
 
 void Daikin176Climate::transmit_state() {
   uint8_t remote_state[22] = {0x11, 0xDA, 0x17, 0x18, 0x04, 0x00, 0x1E, 0x11, 0xDA, 0x17,
-                              0x18, 0x00, 0x73, 0x04, 0x20, 0x0B, 0x00, 0x00, 0x16, 0x00,
+                              0x18, 0x00, 0x73, 0x00, 0x20, 0x00, 0x00, 0x20, 0x16, 0x00,
                               0x20, 0x00};
 
   remote_state[12] = this->operation_mode_alt_();
-//   remote_state[13] = 0x04 only if the mode is changed
   remote_state[14] = this->operation_mode_();
+  //13: modeButton: only if the mode is changed
+  remote_state[13] = ((remote_state[14] & 0xF0) == this->prev_mode_) ? 0x00 : 0x04;
+  this->prev_mode_ = (remote_state[14] & 0xF0);
+  //18: fan_speed and swing
   remote_state[18] = this->fan_speed_();
   remote_state[17] = this->temperature_();
 
-  //6 checksum?
-  //13: modeButton
-  //18: fan_speed and swing
+  //6: checksum of bytes before: if ID unchanged: 1E
+  // remote_state[6] = 0;
+  // for (int i = 0; i < 6; i++) {
+  //   remote_state[6] += remote_state[i];
+  // }
+
   //21: checksum
-  // Calculate checksum
-//   for (int i = 0; i < 6; i++) {
-//     remote_state[6] += remote_state[i];
-//   }
   for (int i = 7; i < 21; i++) {
     remote_state[21] += remote_state[i];
   }
@@ -89,7 +91,7 @@ uint8_t Daikin176Climate::operation_mode_() {
       break;
     case climate::CLIMATE_MODE_OFF:
     default:
-      operating_mode = DAIKIN_MODE_OFF;
+      operating_mode = this->prev_mode_ & 0xF0;
       break;
   }
 
@@ -177,6 +179,7 @@ bool Daikin176Climate::parse_state_frame_(const uint8_t frame[]) {
   } else {
     this->mode = climate::CLIMATE_MODE_OFF;
   }
+  this->prev_mode_ = (mode & 0xF0);
   uint8_t temperature = frame[10];
   if (!(temperature & 0xC0)) {
     this->target_temperature = (temperature >> 1) + 9;

@@ -1,3 +1,5 @@
+// Adapted from https://github.com/crankyoldgit/IRremoteESP8266/blob/master/SupportedProtocols.md
+
 #pragma once
 
 #include "esphome/components/climate_ir/climate_ir.h"
@@ -16,6 +18,7 @@ const uint8_t DAIKIN_MODE_COOL = 0x20;
 const uint8_t DAIKIN_MODE_HEAT = 0x10;
 const uint8_t DAIKIN_MODE_DRY = 0x70;
 const uint8_t DAIKIN_MODE_FAN = 0x00;
+// Mode byte is OR with on/off
 const uint8_t DAIKIN_MODE_OFF = 0x00;
 const uint8_t DAIKIN_MODE_ON = 0x01;
 
@@ -44,6 +47,8 @@ class Daikin176Climate : public climate_ir::ClimateIR {
             {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
 
  protected:
+  uint8_t prev_mode_=DAIKIN_MODE_COOL;
+
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
   uint8_t operation_mode_();
