@@ -11,7 +11,7 @@ const uint8_t DAIKIN_TEMP_MIN = 10;  // Celsius
 const uint8_t DAIKIN_TEMP_MAX = 32;  // Celsius
 
 // Modes
-const uint8_t DAIKIN_MODE_AUTO = 0x30;
+const uint8_t DAIKIN_MODE_HEAT_COOL = 0x30;
 const uint8_t DAIKIN_MODE_COOL = 0x20;
 const uint8_t DAIKIN_MODE_HEAT = 0x10;
 const uint8_t DAIKIN_MODE_DRY = 0x70;
@@ -40,8 +40,8 @@ class Daikin176Climate : public climate_ir::ClimateIR {
   Daikin176Climate()
       : climate_ir::ClimateIR(
             DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX, 1.0f, true, true,
-            std::vector<climate::ClimateFanMode>{climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_HIGH},
-            std::vector<climate::ClimateSwingMode>{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
+            {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_HIGH},
+            {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
 
  protected:
   // Transmit via IR the state of this climate controller.

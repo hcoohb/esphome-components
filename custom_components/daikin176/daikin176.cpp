@@ -5,7 +5,7 @@
 namespace esphome {
 namespace daikin176 {
 
-static const char *TAG = "daikin176.climate";
+static const char *const TAG = "daikin176.climate";
 
 void Daikin176Climate::transmit_state() {
   uint8_t remote_state[22] = {0x11, 0xDA, 0x17, 0x18, 0x04, 0x00, 0x1E, 0x11, 0xDA, 0x17,
@@ -81,8 +81,8 @@ uint8_t Daikin176Climate::operation_mode_() {
     case climate::CLIMATE_MODE_HEAT:
       operating_mode |= DAIKIN_MODE_HEAT;
       break;
-    case climate::CLIMATE_MODE_AUTO:
-      operating_mode |= DAIKIN_MODE_AUTO;
+    case climate::CLIMATE_MODE_HEAT_COOL:
+      operating_mode |= DAIKIN_MODE_HEAT_COOL;
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
       operating_mode |= DAIKIN_MODE_FAN;
@@ -106,7 +106,7 @@ uint8_t Daikin176Climate::operation_mode_alt_() {
       mode_alt |= 0x60;
       break;
     case climate::CLIMATE_MODE_COOL:
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
     case climate::CLIMATE_MODE_HEAT:
     case climate::CLIMATE_MODE_OFF:
     default:
@@ -118,7 +118,7 @@ uint8_t Daikin176Climate::operation_mode_alt_() {
 
 uint8_t Daikin176Climate::fan_speed_() {
   uint8_t fan_speed;
-  switch (this->fan_mode) {
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
       fan_speed = DAIKIN_FAN_L;
       break;
@@ -137,10 +137,10 @@ uint8_t Daikin176Climate::temperature_() {
     case climate::CLIMATE_MODE_FAN_ONLY:
     case climate::CLIMATE_MODE_DRY:
       return 0x10;
-//     case climate::CLIMATE_MODE_AUTO:
+//     case climate::CLIMATE_MODE_HEAT_COOL:
 //       return 0xc0;
     default:
-      uint8_t temperature = (uint8_t) roundf(clamp(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX)) - 9;
+      uint8_t temperature = (uint8_t) roundf(clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX)) - 9;
       return temperature << 1;
   }
 }
@@ -167,8 +167,8 @@ bool Daikin176Climate::parse_state_frame_(const uint8_t frame[]) {
       case DAIKIN_MODE_HEAT:
         this->mode = climate::CLIMATE_MODE_HEAT;
         break;
-      case DAIKIN_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_AUTO;
+      case DAIKIN_MODE_HEAT_COOL:
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
       case DAIKIN_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
