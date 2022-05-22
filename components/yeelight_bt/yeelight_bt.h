@@ -3,8 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
-#include "esphome/components/sensor/sensor.h"
-// #include "esphome/components/yeelight_bt/yeelight_bt_base.h"
+#include "esphome/components/light/light_output.h"
+#include "esphome/components/light/light_state.h"
 
 #ifdef USE_ESP32
 
@@ -30,8 +30,8 @@ static const uint8_t CMD_COLOR = 0x41;
 static const uint8_t CMD_BRIGHTNESS = 0x42;
 static const uint8_t CMD_TEMP = 0x43;
 static const uint8_t CMD_RGB = 0x41;
+static const uint8_t CMD_FLOW = 0x4A;
 static const uint8_t CMD_GETSTATE = 0x44;
-static const uint8_t CMD_GETSTATE_SEC = 0x02;
 static const uint8_t RES_GETSTATE = 0x45;
 static const uint8_t CMD_GETNAME = 0x52;
 static const uint8_t RES_GETNAME = 0x53;
@@ -40,6 +40,9 @@ static const uint8_t RES_GETVER = 0x5D;
 static const uint8_t CMD_GETSERIAL = 0x5E;
 static const uint8_t RES_GETSERIAL = 0x5F;
 static const uint8_t RES_GETTIME = 0x62;
+static const uint8_t MODE_COLOR = 0x01;
+static const uint8_t MODE_WHITE = 0x02;
+static const uint8_t MODE_FLOW = 0x03;
 
 static const std::string MODEL_BEDSIDE = "Bedside";
 static const std::string MODEL_CANDELA = "Candela";
@@ -49,17 +52,34 @@ struct YeeBTPacket {
   uint8_t data[18];
 };
 
-class Yeelight_bt : public esphome::ble_client::BLEClientNode, public PollingComponent {
+class Yeelight_bt : public light::LightOutput, public esphome::ble_client::BLEClientNode, public Component {
  public:
+  // Component methods
   void setup() override;
-  void update() override;
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
+  
+  // BLEClientNode methods
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                           esp_ble_gattc_cb_param_t *param) override;
+  
+  // LightOutput methods
+  light::LightTraits get_traits() override;
+  void setup_state(light::LightState *state) override { this->light_state_ = state; }
+  void write_state(light::LightState *state) override;
 
-  void set_battery(sensor::Sensor *battery) { battery_ = battery; }
-  void set_illuminance(sensor::Sensor *illuminance) { illuminance_ = illuminance; }
+  // Custom methods
+  void request_pair();
+  void request_state();
+  void turn_on();
+  void turn_off();
+  void set_brightness(float brightness);
+  void set_color_temperature(float color_temperature, float brightness);
+  void set_rgb(float red, float green, float blue, float brightness);
+  void request_flow_state();
+  void flow_mode();
+  // void send_cmd(const char *data);
+  void send_cmd(const std::string& hexStr);
 
  protected:
   espbt::ESPBTUUID yeebt_service_uuid_ = espbt::ESPBTUUID::from_raw(YEEBT_SERVICE_UUID);
@@ -68,16 +88,61 @@ class Yeelight_bt : public esphome::ble_client::BLEClientNode, public PollingCom
   uint16_t status_char_handle_;
   uint16_t cmd_char_handle_;
   bool paired_;
-  void decode_(const uint8_t *data, uint16_t length);
+  void char_decode_(const uint8_t *data, uint16_t length);
+  YeeBTPacket *char_encode_(uint8_t command, uint8_t *data, uint8_t length);
+  YeeBTPacket *char_encode_(uint8_t *full_hex, uint8_t length);
+  YeeBTPacket packet_;
+  void char_send_(YeeBTPacket *packet);
+  light::LightState *light_state_{nullptr};
+  bool publish_notif_state_;
 
-  bool logged_in_;
-  sensor::Sensor *battery_{nullptr};
-  sensor::Sensor *illuminance_{nullptr};
-  uint8_t current_sensor_;
-  // The AM43 often gets into a state where it spams loads of battery update
-  // notifications. Here we will limit to no more than every 10s.
-  uint8_t last_battery_update_;
+  float correct_mireds_from_HA(float ct);
+  float correct_mireds_to_HA(float ct);
+
+  // Yeelight status as state values:
+  float state_;
+  light::ColorMode mode_;
+  float red_;
+  float green_;
+  float blue_;
+  float color_temperature_;
+  float brightness_;
+
 };
+
+/// yeelight_bt_flow effect.
+// class Yeelight_BT_Flow : public LightEffect {
+//  public:
+//   explicit Yeelight_BT_Flow(const std::string &name) : LightEffect(name) {}
+
+//   void apply() override {
+//     const uint32_t now = millis();
+//     if (now - this->last_color_change_ < this->update_interval_) {
+//       return;
+//     }
+//     auto call = this->state_->turn_on();
+//     float out = this->on_ ? 1.0 : 0.0;
+//     call.set_brightness_if_supported(out);
+//     this->on_ = !this->on_;
+//     call.set_transition_length_if_supported(this->transition_length_);
+//     // don't tell HA every change
+//     call.set_publish(false);
+//     call.set_save(false);
+//     call.perform();
+
+//     this->last_color_change_ = now;
+//   }
+
+//   void set_transition_length(uint32_t transition_length) { this->transition_length_ = transition_length; }
+
+//   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
+
+//  protected:
+//   bool on_ = false;
+//   uint32_t last_color_change_{0};
+//   uint32_t transition_length_{};
+//   uint32_t update_interval_{};
+// };
 
 }  // namespace yeelight_bt
 }  // namespace esphome
