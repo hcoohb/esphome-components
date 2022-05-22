@@ -9,16 +9,6 @@ namespace yeelight_bt {
 
 static const char *const TAG = "yeelight_bt";
 
-std::string pkt_to_hex(const uint8_t *data, uint16_t len) {
-  char buf[64];
-  memset(buf, 0, 64);
-  for (int i = 0; i < len; i++)
-    sprintf(&buf[i * 2], "%02x", data[i]);
-  std::string ret = buf;
-  return ret;
-}
-
-
 
 void Yeelight_bt::dump_config() {
   // ESP_LOGCONFIG(TAG, "Yeelight_BT");
@@ -131,7 +121,7 @@ void Yeelight_bt::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
         break;
       ESP_LOGI(TAG, "ESP_GATTC_NOTIFY_EVT correct");
       ESP_LOGV(TAG, "ESP_GATTC_NOTIFY_EVT: handle=0x%x, received %d bytes", param->notify.handle, param->notify.value_len);
-      // ESP_LOGV(TAG, "DEC(%d): 0x%s", param->notify.value_len, pkt_to_hex(param->notify.value, param->notify.value_len).c_str());
+      ESP_LOGV(TAG, "DEC(%d): 0x%s", param->notify.value_len, format_hex_pretty(param->notify.value, param->notify.value_len).c_str());
       this->char_decode_(param->notify.value, param->notify.value_len);
       // this->decoder_->decode(param->notify.value, param->notify.value_len);
 
@@ -166,7 +156,7 @@ void Yeelight_bt::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
 }
 
 void Yeelight_bt::char_decode_(const uint8_t *data, uint16_t length){
-  ESP_LOGV(TAG, "DEC(%d): 0x%s", length, pkt_to_hex(data, length).c_str());
+  ESP_LOGV(TAG, "DEC(%d): 0x%s", length, format_hex_pretty(data, length).c_str());
   
 
   if (length != 18 || data[0] !=COMMAND_STX) {
@@ -286,7 +276,7 @@ YeeBTPacket *Yeelight_bt::char_encode_(uint8_t command, uint8_t *data, uint8_t l
   this->packet_.data[0] = COMMAND_STX;
   this->packet_.data[1] = command;
   memcpy(&this->packet_.data[2], data, length);
-  ESP_LOGV(TAG, "ENC(%d): 0x%s", this->packet_.length, pkt_to_hex(this->packet_.data, this->packet_.length).c_str());
+  ESP_LOGV(TAG, "ENC(%d): 0x%s", this->packet_.length, format_hex_pretty(this->packet_.data, this->packet_.length).c_str());
   return &this->packet_;
 }
 
