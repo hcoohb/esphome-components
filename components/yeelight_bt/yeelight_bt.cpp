@@ -386,19 +386,14 @@ void Yeelight_bt::flow_mode() {
 //   ESP_LOGV(TAG, "In Send_CMD to be executed is: %s, of size %d", data, sizeof(data));
 void Yeelight_bt::send_cmd(const std::string& hexStr){
   // convert to hex:
-  // const char *c = hexStr.c_str();
+  const char *c = hexStr.c_str();
   ESP_LOGV(TAG, "In Send_CMD to be executed is: %s, of size %d", hexStr.c_str(), hexStr.size());
   uint8_t data[17];
-  parse_hex(hexStr, data, 17);
-  // char b[3] = "00";
-  // for (unsigned int i = 0; i < hexStr.size(); i += 2) {
-  //   b[0] = *(txt + i);
-  //   b[1] = *(txt + i + 1);
-  //   *(buf + (i >> 1)) = strtoul(b, NULL, 16);
-  // }
-  ESP_LOGV(TAG, "In Send_CMD to be executed is: %s, of size %d", data, sizeof(data));
-  // this->char_send_(this->char_encode_(CMD_RGB, data, 5));
-
+  memset(data, 0, 17);
+  parse_hex(hexStr, data, hexStr.size()/2);
+  // ESP_LOGV(TAG, "In Send_CMD to be executed is: %s, of size %d - wrote bytes", data, sizeof(data));
+  // ESP_LOGV(TAG, "In Send_CMD to be executed is: %s", format_hex_pretty(data, sizeof(data)).c_str());
+  this->char_send_(this->char_encode_(data, 17));
 
 }
 
