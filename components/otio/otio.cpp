@@ -14,14 +14,21 @@ void OtioComponent::setup() {
     //     OffsetFilter(1),
     //     SlidingWindowMovingAverageFilter(15, 15), // average over last 15 values
     // });
-    for (auto sensor : this->sensors_) {
+    for (auto sensor : this->sensors_temp_) {
+        sensor->publish_state(NAN);
+    }
+    for (auto sensor : this->sensors_hum_) {
         sensor->publish_state(NAN);
     }
 }
 void OtioComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "OtioComponent:");
-    for (auto *sensor : this->sensors_) {
-        LOG_SENSOR("  ", "Sensor", sensor);
+    for (auto *sensor : this->sensors_temp_) {
+        LOG_SENSOR("  ", "Sensor Temp", sensor);
+        ESP_LOGCONFIG(TAG, "    Channel %i", sensor->get_channel());
+    }
+    for (auto *sensor : this->sensors_hum_) {
+        LOG_SENSOR("  ", "Sensor Hum", sensor);
         ESP_LOGCONFIG(TAG, "    Channel %i", sensor->get_channel());
     }
     for (auto *sensor : this->binary_sensors_) {
@@ -62,6 +69,7 @@ bool OtioComponent::on_receive(remote_base::RemoteReceiveData data) {
     //   uint8_t *b = (uint8_t *)&decoded_code;
     //   ESP_LOGD(TAG, "OTIO b array %x, %x, %x, %x, %x, %x, %x, %x", b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]);
       
+    uint8_t hum = (uint8_t)(decoded_code & 0xFF);
     decoded_code >>= 12;
     int temp_raw = (int16_t)((decoded_code & 0x0FFF) << 4); // sign-extend
     float temp =(temp_raw >> 4) * 0.1f;
@@ -70,11 +78,16 @@ bool OtioComponent::on_receive(remote_base::RemoteReceiveData data) {
     uint8_t channel = (decoded_code & 0x03)+1;
     bool battery_low = (decoded_code & 0x08) == 0;
     uint8_t id = decoded_code >>= 4;
-    ESP_LOGD(TAG, "Received OTIO temp %fC, battery low: %d, channel %d, ID %d", temp, battery_low, channel, id);
+    ESP_LOGD(TAG, "Received OTIO temp %fC, humidity %d%, battery low: %d, channel %d, ID %d", temp, hum, battery_low, channel, id);
       
-    for (auto *sensor : this->sensors_) {
+    for (auto *sensor : this->sensors_temp_) {
       if(sensor->get_channel() == channel){
           sensor->publish_state(temp);
+      }
+    }  
+    for (auto *sensor : this->sensors_hum_) {
+      if(sensor->get_channel() == channel){
+          sensor->publish_state(hum);
       }
     }  
     for (auto *sensor : this->binary_sensors_) {
@@ -85,9 +98,14 @@ bool OtioComponent::on_receive(remote_base::RemoteReceiveData data) {
     return true;
 }
 
-OtioTemperatureSensor *OtioComponent::get_sensor_by_channel(uint8_t channel) {
-    auto s = new OtioTemperatureSensor(channel, this);
-    this->sensors_.push_back(s);
+OtioSensor *OtioComponent::get_temp_sensor_by_channel(uint8_t channel) {
+    auto s = new OtioSensor(channel, this);
+    this->sensors_temp_.push_back(s);
+    return s;
+}
+OtioSensor *OtioComponent::get_hum_sensor_by_channel(uint8_t channel) {
+    auto s = new OtioSensor(channel, this);
+    this->sensors_hum_.push_back(s);
     return s;
 }
 OtioLowBatteryBinarySensor *OtioComponent::get_binary_sensor_by_channel(uint8_t channel) {
@@ -97,17 +115,17 @@ OtioLowBatteryBinarySensor *OtioComponent::get_binary_sensor_by_channel(uint8_t 
 }
 
 
-OtioTemperatureSensor::OtioTemperatureSensor(uint8_t channel, OtioComponent *parent)
+OtioSensor::OtioSensor(uint8_t channel, OtioComponent *parent)
     : parent_(parent){
     this->channel_ = channel;
     this->set_filters({});
 }
-void OtioTemperatureSensor::set_filters(const std::vector<sensor::Filter *> &filters) {
+void OtioSensor::set_filters(const std::vector<sensor::Filter *> &filters) {
     this->clear_filters();
     this->add_filter(new sensor::ThrottleFilter(2000)); //Add extra filter to only publish once per packet
     this->add_filters(filters);
 }
-uint8_t OtioTemperatureSensor::get_channel() const { return this->channel_; }
+uint8_t OtioSensor::get_channel() const { return this->channel_; }
 
 
 OtioLowBatteryBinarySensor::OtioLowBatteryBinarySensor(uint8_t channel, OtioComponent *parent)
