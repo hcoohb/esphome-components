@@ -54,12 +54,12 @@ bool AMSensor::sync(){
     transceiver.setChannel(this->channel_); 
     transceiver.write(this->addr_, buffer, sizeof(buffer));
     while(!transceiver.TX(NRF905_NEXTMODE_TX, true));
-    this->sync_timer = millis();
+    this->sync_timer = esphome::millis();
     this->status_ = AMS_SYNCING_TX;
     return false;
   }
 
-  if((this->status_==AMS_SYNCING_TX) && (millis() - this->sync_timer <= 10000))
+  if((this->status_==AMS_SYNCING_TX) && (esphome::millis() - this->sync_timer <= 10000))
     return false; // we are still transmitting
   if(this->status_==AMS_SYNCING_TX){
     while(!transceiver.TX(NRF905_NEXTMODE_RX , true));
@@ -68,7 +68,7 @@ bool AMSensor::sync(){
     return true; // we are done transmitting, now listen
   }
   //Now waiting for a reply
-  if(millis() - this->sync_timer <= 15000){
+  if(esphome::millis() - this->sync_timer <= 15000){
     return true;
   }
   // replied timed out...
@@ -79,7 +79,7 @@ bool AMSensor::sync(){
 
 bool AMSensor::setup_listening(){
   if(this->status_ < AMS_SYNCED) return false;
-  if((millis() - this->start_listen_time_>42000) && this->status_==AMS_SYNCED){
+  if((esphome::millis() - this->start_listen_time_>42000) && this->status_==AMS_SYNCED){
     // start listening for this sensor
     ESP_LOGD("nRF905", "Setting up listening for sensor");
     transceiver.setChannel(this->channel_);
@@ -87,7 +87,7 @@ bool AMSensor::setup_listening(){
     this->status_ = AMS_LISTENING;
     return true;
   }
-  if ((millis() - this->start_listen_time_>72000) && (millis() - this->start_listen_time_<72500) && this->status_==AMS_LISTENING){
+  if ((esphome::millis() - this->start_listen_time_>72000) && (esphome::millis() - this->start_listen_time_<72500) && this->status_==AMS_LISTENING){
     // we did not receive data.... Out of sync?
     ESP_LOGD("nRF905", "Sensored data not received - timed out");
     // this->parent_->dump_config();
@@ -103,18 +103,18 @@ void AMSensor::process_data(uint8_t *replyBuffer, uint8_t size){
       // 08 01 E4 03 00   00 08 00 00 00   00 00 01 00 00   00 00 55 55 55   CB 45
       ESP_LOGD("nRF905", "Syncing sensor xx - fininshed RX: received data");
       this->status_ = AMS_SYNCED;
-      this->start_listen_time_ = millis();
+      this->start_listen_time_ = esphome::millis();
     }
     // else
       return ;
   }
 
-  if(millis()-this->start_listen_time_ < 1000){
+  if(esphome::millis()-this->start_listen_time_ < 1000){
     ESP_LOGD("nRF905", "Ignoring msg as less than 1s from previous");
     return;
   }
   // that should be real data
-  this->start_listen_time_ = millis();
+  this->start_listen_time_ = esphome::millis();
   this->status_ = AMS_SYNCED;
   uint8_t ackn_buffer[PAYLOAD_TX_SIZE] = {0x09, 0xc3, 0x9c, 0x33, 0x33, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x35, 0xf6};
   if(replyBuffer[1]==1){
@@ -132,9 +132,9 @@ void AMSensor::process_data(uint8_t *replyBuffer, uint8_t size){
   transceiver.standby();
   // transceiver.setChannel(this->channel_);
   transceiver.write(this->addr_, ackn_buffer, sizeof(ackn_buffer));
-  delay(100);
+  esphome::delay(100);
   while(!transceiver.TX(NRF905_NEXTMODE_TX, true));
-  delay(500);
+  esphome::delay(500);
   while(!transceiver.TX(NRF905_NEXTMODE_RX , true));
   ESP_LOGD("nRF905", "Ackn sent");
 }
