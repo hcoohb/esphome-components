@@ -9,7 +9,7 @@ static volatile uint8_t packetStatus; // NOTE: In interrupt mode this must be vo
 static volatile uint8_t drUP; // NOTE: In interrupt mode this must be volatile
 static volatile uint8_t amUP; // NOTE: In interrupt mode this must be volatile
 static volatile uint8_t txDone;
-nRF905 transceiver = nRF905();
+nRF905 transceiver = nRF905(SPI);
 static void ICACHE_RAM_ATTR HOT nRF905_int_am(){amUP = 1;transceiver.interrupt_am();} //ESP_LOGD(TAG, "AM" );
 static void ICACHE_RAM_ATTR HOT nRF905_int_dr(){drUP = 1;transceiver.interrupt_dr();} //void ICACHE_RAM_ATTR HOT ????
 
@@ -153,7 +153,6 @@ void AquaMonitor::setup() {
     SPI.begin();
     // Minimal wires (interrupt mode)
 	transceiver.begin(
-		SPI,
 		10000000, // SPI Clock speed (10MHz)
 		5, // SPI SS
 		25, //NRF905_PIN_UNUSED, // CE (standby) pin must be connected to VCC (3.3V)
