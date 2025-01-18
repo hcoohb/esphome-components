@@ -42,6 +42,8 @@ bool OtioComponent::on_receive(remote_base::RemoteReceiveData data) {
     /*
     Data received through PPM
     36bits of data repeated 20 times. stored in uint64t
+    https://manual.pilight.org/protocols/433.92/weather/nexus.html
+    https://github.com/esphome/esphome/pull/7713
     
     The data is grouped in 9 nibbles:
     [id0] [id1] [flags] [temp0] [temp1] [temp2] [const] [const] [const]
