@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "esphome/components/climate/climate.h"
 #include "esphome/components/climate_ir/climate_ir.h"
 
 namespace esphome {
@@ -48,6 +49,7 @@ class Daikin176Climate : public climate_ir::ClimateIR {
 
  protected:
   uint8_t prev_mode_=DAIKIN_MODE_COOL;
+  climate::ClimateTraits traits() override;
 
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;

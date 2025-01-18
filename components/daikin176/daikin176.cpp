@@ -7,6 +7,31 @@ namespace daikin176 {
 
 static const char *const TAG = "daikin176.climate";
 
+climate::ClimateTraits Daikin176Climate::traits() {
+  auto traits = climate::ClimateTraits();
+  traits.set_supports_current_temperature(this->sensor_ != nullptr);
+  traits.set_supported_modes({climate::CLIMATE_MODE_OFF});
+  // traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL});
+  if (this->supports_cool_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
+  if (this->supports_heat_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
+  if (this->supports_dry_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_DRY);
+  if (this->supports_fan_only_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_FAN_ONLY);
+
+  traits.set_supports_two_point_target_temperature(false);
+  traits.set_visual_min_temperature(this->minimum_temperature_);
+  traits.set_visual_max_temperature(this->maximum_temperature_);
+  traits.set_visual_temperature_step(this->temperature_step_);
+  traits.set_supported_fan_modes(this->fan_modes_);
+  traits.set_supported_swing_modes(this->swing_modes_);
+  traits.set_supported_presets(this->presets_);
+  return traits;
+}
+
+
 void Daikin176Climate::transmit_state() {
   uint8_t remote_state[22] = {0x11, 0xDA, 0x17, 0x18, 0x04, 0x00, 0x1E, 0x11, 0xDA, 0x17,
                               0x18, 0x00, 0x73, 0x00, 0x20, 0x00, 0x00, 0x20, 0x16, 0x00,
