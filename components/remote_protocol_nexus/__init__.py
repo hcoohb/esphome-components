@@ -12,8 +12,7 @@ from esphome.const import (
 
 
 
-CONFIG_SCHEMA = cv.Schema({
-})
+CONFIG_SCHEMA = cv.Schema({})
 
 
 

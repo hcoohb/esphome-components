@@ -24,6 +24,21 @@ static const uint32_t BIT_HIGH_US = 500;
 static const uint32_t BIT_ZERO_LOW_US = 980;
 static const uint32_t BIT_ONE_LOW_US = 1950;
 
+
+
+void NexusProtocol::dump_timings_(const RawTimings &timings) const {
+  ESP_LOGD(TAG, "Nexus: size=%u", timings.size());
+  // for (int32_t timing : timings) {
+    // ESP_LOGD(TAG, "Nexus: timing=%ld", (long) timing);
+  // }
+
+  for (uint16_t i = 0; i < timings.size(); i+=4) {
+    ESP_LOGD(TAG, "Nexus: timing=%ld, %ld, %ld, %ld", (long) timings[i],(long) timings[i+1],(long) timings[i+2],(long) timings[i+3]);
+  }
+}
+
+
+
 void NexusProtocol::encode(RemoteTransmitData *dst, const NexusData &data) {
   // encode temperature
   int16_t t = int16_t(data.temperature * 10.0f);
@@ -100,30 +115,47 @@ optional<NexusData> NexusProtocol::decode(RemoteReceiveData src) {
       .force_update = false,
   };
 
+
+
   // check packet size
-  if (src.size() < NBITS)
+  // if ((src.size() < NBITS) || (src.size() > NBITS+ 4))
+  if (src.size() != NBITS+ 2) // header + data
     return {};
+  ESP_LOGD(TAG, "Nexus src size: %i" , src.size());
+
+  // let's force the tolerance to 25% for the CC1101
+  uint32_t tolerance_prev = src.get_tolerance();
+  ToleranceMode tolerance_mode_prev = src.get_tolerance_mode();
+  src.set_tolerance(25, ToleranceMode::TOLERANCE_MODE_PERCENTAGE);
+
   // check constant bits
   if (!src.peek_item(BIT_HIGH_US, BIT_ONE_LOW_US, 24 * 2) || !src.peek_item(BIT_HIGH_US, BIT_ONE_LOW_US, 25 * 2) ||
-      !src.peek_item(BIT_HIGH_US, BIT_ONE_LOW_US, 26 * 2) || !src.peek_item(BIT_HIGH_US, BIT_ONE_LOW_US, 27 * 2))
-    return {};
+      !src.peek_item(BIT_HIGH_US, BIT_ONE_LOW_US, 26 * 2) || !src.peek_item(BIT_HIGH_US, BIT_ONE_LOW_US, 27 * 2)) {
+        src.set_tolerance(tolerance_prev, tolerance_mode_prev );
+        return {};
+      }
 
   uint64_t packet = 0;
   for (uint8_t i = 0; i < NBITS / 2; i++) {
     if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
       packet = (packet << 1) | 1;
+      // ESP_LOGD(TAG, "Nexus bit high");
     } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
       packet = (packet << 1) | 0;
+      // ESP_LOGD(TAG, "Nexus bit low");
     } else {
+      src.set_tolerance(tolerance_prev, tolerance_mode_prev );
       return {};
     }
   }
+  // dump_timings_(src.get_raw_data());
 
   // check constant bits
   if (((packet >> 8) & 0b1111) != 0b1111) {
+    src.set_tolerance(tolerance_prev, tolerance_mode_prev );
     return {};
   }
-//   ESP_LOGD(TAG, "Nexus packet: 0x%09" PRIX64, packet);
+  ESP_LOGD(TAG, "Nexus packet: 0x%09" PRIX64, packet);
 
   out.channel = ((packet >> 24) & 0b11) + 1;
   out.address = (packet >> 28) & 0xFF;
@@ -134,6 +166,7 @@ optional<NexusData> NexusProtocol::decode(RemoteReceiveData src) {
   out.battery_level = (packet >> 27) & 0b1;
   out.force_update = (packet >> 26) & 0b1;
 
+  src.set_tolerance(tolerance_prev, tolerance_mode_prev );
   return out;
 }
 

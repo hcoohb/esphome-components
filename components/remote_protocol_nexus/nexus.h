@@ -23,6 +23,9 @@ struct NexusData {
 };
 
 class NexusProtocol : public RemoteProtocol<NexusData> {
+ private:
+  void dump_timings_(const RawTimings &timings) const;
+
  public:
   void encode(RemoteTransmitData *dst, const NexusData &data) override;
   optional<NexusData> decode(RemoteReceiveData src) override;
